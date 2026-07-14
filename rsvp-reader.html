@@ -1,0 +1,741 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<script>
+  (function(){
+    try{
+      var prefersLight = window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches;
+      document.documentElement.setAttribute('data-theme', prefersLight ? 'light' : 'dark');
+    }catch(e){
+      document.documentElement.setAttribute('data-theme','dark');
+    }
+  })();
+</script>
+<title>ORP · Trình đọc nhịp nhanh</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Lexend:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<style>
+  :root, [data-theme="dark"]{
+    --bg-stage:#12151a;
+    --bg-panel:#1a1e24;
+    --bg-panel-2:#20252c;
+    --bg-input:#171b21;
+    --text-primary:#e7e4dc;
+    --text-muted:#8b919b;
+    --text-dim:#565c66;
+    --accent:#5fd0c0;
+    --accent-strong:#7fe0d2;
+    --accent-on:#08211d;
+    --accent-soft:rgba(95,208,192,.15);
+    --amber:#e3ab55;
+    --border:#2a2f37;
+    --danger:#e0705c;
+    --spotlight:rgba(95,208,192,.06);
+    --shadow:0 20px 44px -26px rgba(0,0,0,.65);
+  }
+
+  [data-theme="light"]{
+    --bg-stage:#f6f4ee;
+    --bg-panel:#ffffff;
+    --bg-panel-2:#f1efe6;
+    --bg-input:#fdfcf9;
+    --text-primary:#26281f;
+    --text-muted:#6c6f65;
+    --text-dim:#9a9d92;
+    --accent:#1f9c8a;
+    --accent-strong:#167565;
+    --accent-on:#f4fffb;
+    --accent-soft:rgba(31,156,138,.12);
+    --amber:#a5711b;
+    --border:#e3ded0;
+    --danger:#bf4a34;
+    --spotlight:rgba(31,156,138,.05);
+    --shadow:0 16px 34px -22px rgba(60,55,40,.16);
+  }
+
+  *{box-sizing:border-box;}
+  *:focus-visible{outline:2px solid var(--accent);outline-offset:2px;}
+
+  html,body{height:100%;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(ellipse at 50% -10%, var(--spotlight), transparent 55%),
+      var(--bg-stage);
+    color:var(--text-primary);
+    font-family:'Lexend', system-ui, sans-serif;
+    min-height:100vh;
+    display:flex;
+    align-items:center;
+    justify-content:center;
+    padding:1.5rem;
+    transition:background-color .35s ease, color .35s ease;
+  }
+
+  .mono{font-family:'JetBrains Mono', ui-monospace, monospace;font-variant-numeric:tabular-nums;}
+
+  .app{width:100%;max-width:760px;}
+
+  /* ---------- theme toggle ---------- */
+  .theme-toggle{
+    position:fixed;top:1.1rem;right:1.1rem;width:38px;height:38px;border-radius:50%;
+    border:1px solid var(--border);background:var(--bg-panel-2);color:var(--text-muted);
+    display:flex;align-items:center;justify-content:center;cursor:pointer;z-index:50;
+    transition:border-color .15s,color .15s,background-color .3s ease;
+  }
+  .theme-toggle:hover{border-color:var(--accent);color:var(--accent);}
+  .theme-toggle svg{width:17px;height:17px;}
+  .theme-toggle .icon-moon{display:none;}
+  [data-theme="light"] .theme-toggle .icon-sun{display:none;}
+  [data-theme="light"] .theme-toggle .icon-moon{display:block;}
+
+  /* ---------- shared eyebrow ---------- */
+  .eyebrow{
+    display:flex;align-items:center;gap:.5rem;
+    font-family:'JetBrains Mono', monospace;
+    font-size:.72rem;letter-spacing:.14em;text-transform:uppercase;
+    color:var(--text-muted);margin-bottom:.6rem;
+  }
+  .eyebrow .dot{width:6px;height:6px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);}
+
+  /* ================= SETUP SCREEN ================= */
+  #setupSection{
+    background:var(--bg-panel);
+    border:1px solid var(--border);
+    border-radius:8px;
+    padding:2.2rem 2rem;
+    position:relative;
+    box-shadow:var(--shadow);
+    transition:background-color .35s ease, border-color .35s ease, box-shadow .35s ease;
+  }
+  #setupSection .corner{position:absolute;width:16px;height:16px;}
+  #setupSection .corner.tl{top:-1px;left:-1px;border-top:2px solid var(--accent);border-left:2px solid var(--accent);}
+  #setupSection .corner.tr{top:-1px;right:-1px;border-top:2px solid var(--accent);border-right:2px solid var(--accent);}
+  #setupSection .corner.bl{bottom:-1px;left:-1px;border-bottom:2px solid var(--accent);border-left:2px solid var(--accent);}
+  #setupSection .corner.br{bottom:-1px;right:-1px;border-bottom:2px solid var(--accent);border-right:2px solid var(--accent);}
+
+  h1{
+    font-size:1.7rem;font-weight:700;margin:0 0 .45rem;letter-spacing:-.01em;
+  }
+  .subtitle{color:var(--text-muted);font-size:.95rem;line-height:1.65;margin:0 0 1.6rem;max-width:52ch;}
+
+  .tabs{display:flex;gap:.4rem;margin-bottom:1rem;border:1px solid var(--border);border-radius:8px;padding:.25rem;background:var(--bg-input);transition:background-color .3s ease, border-color .3s ease;}
+  .tab{
+    flex:1;text-align:center;padding:.55rem .6rem;border-radius:5px;cursor:pointer;
+    font-family:'JetBrains Mono',monospace;font-size:.75rem;letter-spacing:.06em;text-transform:uppercase;
+    color:var(--text-muted);border:1px solid transparent;user-select:none;transition:background-color .15s,color .15s,border-color .15s;
+  }
+  .tab.active{background:var(--accent-soft);color:var(--accent);border-color:var(--accent);}
+
+  .tabpanel{display:none;}
+  .tabpanel.active{display:block;}
+
+  textarea#pasteInput{
+    width:100%;min-height:180px;resize:vertical;
+    background:var(--bg-input);color:var(--text-primary);
+    border:1px solid var(--border);border-radius:8px;
+    padding:.9rem 1rem;font-family:'Lexend',sans-serif;font-size:1rem;line-height:1.7;
+    transition:background-color .3s ease, border-color .3s ease, color .3s ease;
+  }
+  textarea#pasteInput::placeholder{color:var(--text-dim);}
+
+  .dropzone{
+    border:1px dashed var(--border);border-radius:8px;
+    padding:2.2rem 1rem;text-align:center;cursor:pointer;
+    background:var(--bg-input);transition:border-color .15s, background-color .3s ease;
+  }
+  .dropzone.drag{border-color:var(--accent);background:var(--accent-soft);}
+  .dropzone .dz-icon{font-size:1.6rem;margin-bottom:.5rem;color:var(--accent);}
+  .dropzone .dz-text{font-size:.95rem;color:var(--text-primary);margin-bottom:.2rem;}
+  .dropzone .dz-sub{font-size:.8rem;color:var(--text-muted);}
+  #fileInput{display:none;}
+
+  .filename-tag{
+    margin-top:.8rem;display:none;align-items:center;gap:.5rem;
+    font-family:'JetBrains Mono',monospace;font-size:.8rem;color:var(--accent);
+  }
+  .filename-tag.show{display:flex;}
+
+  .status-line{margin-top:.7rem;font-size:.84rem;color:var(--text-muted);min-height:1.2em;}
+  .status-line.error{color:var(--danger);}
+
+  .setup-footer{display:flex;align-items:center;justify-content:space-between;margin-top:1.4rem;gap:1rem;flex-wrap:wrap;}
+
+  .wpm-preset{display:flex;align-items:center;gap:.6rem;}
+  .wpm-preset label{font-family:'JetBrains Mono',monospace;font-size:.72rem;color:var(--text-muted);letter-spacing:.06em;text-transform:uppercase;}
+  .wpm-preset select{
+    background:var(--bg-input);color:var(--text-primary);border:1px solid var(--border);
+    border-radius:5px;padding:.4rem .55rem;font-family:'JetBrains Mono',monospace;font-size:.82rem;
+  }
+
+  .btn-start{
+    background:var(--accent);color:var(--accent-on);border:none;font-weight:600;
+    padding:.85rem 1.7rem;border-radius:6px;font-family:'JetBrains Mono',monospace;
+    letter-spacing:.06em;text-transform:uppercase;font-size:.82rem;cursor:pointer;
+    transition:background-color .15s, transform .1s;
+  }
+  .btn-start:hover:not(:disabled){background:var(--accent-strong);}
+  .btn-start:active:not(:disabled){transform:scale(.98);}
+  .btn-start:disabled{opacity:.35;cursor:not-allowed;}
+
+  /* ================= READER SCREEN ================= */
+  #readerSection{display:none;}
+  #readerSection.show{display:block;}
+
+  .reader-topbar{display:flex;align-items:center;justify-content:space-between;margin-bottom:1.1rem;transition:opacity .3s ease;}
+  .link-back{
+    background:none;border:none;color:var(--text-muted);cursor:pointer;
+    font-family:'JetBrains Mono',monospace;font-size:.76rem;letter-spacing:.05em;
+    text-transform:uppercase;padding:.3rem 0;
+  }
+  .link-back:hover{color:var(--accent);}
+
+  .size-toggle{display:flex;gap:.3rem;}
+  .size-btn{
+    width:28px;height:28px;border-radius:5px;border:1px solid var(--border);background:var(--bg-panel-2);
+    color:var(--text-muted);font-family:'JetBrains Mono',monospace;font-size:.72rem;cursor:pointer;
+    transition:border-color .15s,color .15s,background-color .3s ease;
+  }
+  .size-btn.active{border-color:var(--accent);color:var(--accent);}
+
+  .reticle{
+    position:relative;background:
+      radial-gradient(ellipse 60% 100% at 50% 50%, var(--spotlight), transparent 72%),
+      var(--bg-panel);
+    border:1px solid var(--border);border-radius:8px;
+    padding:3rem 1.5rem;min-height:180px;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    box-shadow:var(--shadow);
+    transition:background-color .35s ease, border-color .35s ease;
+  }
+  .reticle .corner{position:absolute;width:18px;height:18px;}
+  .reticle .corner.tl{top:-1px;left:-1px;border-top:2px solid var(--accent);border-left:2px solid var(--accent);}
+  .reticle .corner.tr{top:-1px;right:-1px;border-top:2px solid var(--accent);border-right:2px solid var(--accent);}
+  .reticle .corner.bl{bottom:-1px;left:-1px;border-bottom:2px solid var(--accent);border-left:2px solid var(--accent);}
+  .reticle .corner.br{bottom:-1px;right:-1px;border-bottom:2px solid var(--accent);border-right:2px solid var(--accent);}
+
+  .tick{position:absolute;left:50%;width:1px;height:12px;background:var(--amber);transform:translateX(-50%);}
+  .tick-top{top:10px;}
+  .tick-bottom{bottom:10px;}
+
+  .word-row{
+    display:flex;align-items:baseline;width:100%;font-weight:600;font-family:'Lexend',sans-serif;
+    white-space:nowrap;overflow:hidden;letter-spacing:-.01em;
+  }
+  .word-row.size-s{font-size:clamp(1.7rem,4.6vw,3rem);}
+  .word-row.size-m{font-size:clamp(2.2rem,6vw,4.4rem);}
+  .word-row.size-l{font-size:clamp(2.7rem,7.4vw,5.6rem);}
+
+  .w-left{flex:1;text-align:right;overflow:hidden;text-overflow:clip;}
+  .w-right{flex:1;text-align:left;overflow:hidden;text-overflow:clip;}
+  .w-pivot{color:var(--accent);padding:0 .02em;text-shadow:0 0 14px var(--accent-soft);}
+
+  /* progress tape */
+  .progress-wrap{margin-top:1.1rem;transition:opacity .3s ease;}
+  input[type=range]{
+    -webkit-appearance:none;appearance:none;width:100%;height:4px;
+    background:var(--border);border-radius:2px;outline:none;cursor:pointer;
+    transition:background-color .3s ease;
+  }
+  input[type=range]::-webkit-slider-thumb{
+    -webkit-appearance:none;width:14px;height:14px;border-radius:50%;
+    background:var(--accent);border:2px solid var(--bg-stage);cursor:pointer;margin-top:-5px;
+  }
+  input[type=range]::-moz-range-thumb{
+    width:14px;height:14px;border-radius:50%;background:var(--accent);border:2px solid var(--bg-stage);cursor:pointer;
+  }
+  input[type=range]::-moz-range-track{background:var(--border);height:4px;border-radius:2px;}
+
+  .stat-row{display:flex;justify-content:space-between;margin-top:.5rem;font-family:'JetBrains Mono',monospace;font-size:.78rem;color:var(--text-muted);}
+  .stat-row .accent-num{color:var(--accent);}
+
+  /* transport */
+  .transport{display:flex;align-items:center;justify-content:center;gap:1rem;margin:1.6rem 0 1.4rem;}
+  .btn-ghost{
+    font-family:'JetBrains Mono',monospace;font-size:.78rem;letter-spacing:.04em;text-transform:uppercase;
+    border:1px solid var(--border);background:var(--bg-panel-2);color:var(--text-primary);
+    padding:.55rem .8rem;border-radius:6px;cursor:pointer;transition:border-color .15s,color .15s,background-color .3s ease;
+  }
+  .btn-ghost:hover{border-color:var(--accent);color:var(--accent);}
+
+  .btn-play{
+    width:60px;height:60px;border-radius:50%;background:var(--accent);color:var(--accent-on);border:none;
+    font-size:1.25rem;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;
+    transition:background-color .15s, transform .1s;
+  }
+  .btn-play:hover{background:var(--accent-strong);}
+  .btn-play:active{transform:scale(.96);}
+
+  /* speed ruler */
+  .speed-block{background:var(--bg-panel);border:1px solid var(--border);border-radius:8px;padding:1rem 1.1rem;transition:background-color .3s ease,border-color .3s ease,opacity .3s ease;}
+  .speed-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:.55rem;}
+  .speed-label{font-family:'JetBrains Mono',monospace;font-size:.72rem;letter-spacing:.1em;text-transform:uppercase;color:var(--text-muted);}
+  .speed-value{font-family:'JetBrains Mono',monospace;font-size:1rem;color:var(--accent);font-weight:700;}
+  .speed-ticks{display:flex;justify-content:space-between;margin-top:.4rem;font-family:'JetBrains Mono',monospace;font-size:.68rem;color:var(--text-dim);}
+
+  .kbd-hint{margin-top:1.2rem;text-align:center;font-family:'JetBrains Mono',monospace;font-size:.7rem;color:var(--text-dim);letter-spacing:.02em;transition:opacity .3s ease;}
+  .kbd-hint kbd{background:var(--bg-panel-2);border:1px solid var(--border);border-radius:3px;padding:.05rem .35rem;color:var(--text-muted);}
+
+  /* focus mode: dim non-essential chrome while playing */
+  #readerSection.is-playing .reader-topbar,
+  #readerSection.is-playing .speed-block,
+  #readerSection.is-playing .kbd-hint{
+    opacity:.32;
+  }
+  #readerSection.is-playing .reader-topbar:hover,
+  #readerSection.is-playing .speed-block:hover{
+    opacity:1;
+  }
+
+  @media (max-width:520px){
+    #setupSection{padding:1.6rem 1.2rem;}
+    .transport{gap:.6rem;}
+    .btn-ghost{padding:.5rem .6rem;font-size:.7rem;}
+    h1{font-size:1.4rem;}
+    .theme-toggle{top:.7rem;right:.7rem;}
+  }
+
+  @media (prefers-reduced-motion:reduce){
+    *{transition:none!important;animation:none!important;}
+  }
+</style>
+</head>
+<body>
+
+<button class="theme-toggle" id="themeToggle" aria-label="Chuyển giao diện sáng/tối" title="Chuyển giao diện sáng/tối">
+  <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="4"></circle><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"></path></svg>
+  <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3 7 7 0 0 0 21 12.8z"></path></svg>
+</button>
+
+<div class="app">
+
+  <!-- ============ SETUP SCREEN ============ -->
+  <section id="setupSection">
+    <span class="corner tl"></span><span class="corner tr"></span>
+    <span class="corner bl"></span><span class="corner br"></span>
+
+    <div class="eyebrow"><span class="dot"></span>ORP · ĐỌC NHỊP NHANH</div>
+    <h1>Trình đọc nhịp nhanh (RSVP)</h1>
+    <p class="subtitle">Dán văn bản hoặc tải lên tệp .txt / .pdf. Từng từ sẽ được hiển thị lần lượt tại một điểm cố định, giúp mắt không cần di chuyển và tăng tốc độ đọc.</p>
+
+    <div class="tabs" role="tablist">
+      <div class="tab active" id="tabPasteBtn" role="tab">Dán văn bản</div>
+      <div class="tab" id="tabFileBtn" role="tab">Tải tệp (.txt / .pdf)</div>
+    </div>
+
+    <div class="tabpanel active" id="tabPastePanel">
+      <textarea id="pasteInput" placeholder="Dán đoạn văn bản của bạn vào đây..."></textarea>
+    </div>
+
+    <div class="tabpanel" id="tabFilePanel">
+      <div class="dropzone" id="dropzone" tabindex="0">
+        <div class="dz-icon">⇩</div>
+        <div class="dz-text">Kéo thả tệp vào đây, hoặc bấm để chọn</div>
+        <div class="dz-sub">Hỗ trợ .txt và .pdf</div>
+      </div>
+      <input type="file" id="fileInput" accept=".txt,.pdf,text/plain,application/pdf">
+      <div class="filename-tag" id="filenameTag">📄 <span id="filenameText"></span></div>
+    </div>
+
+    <div class="status-line" id="statusLine"></div>
+
+    <div class="setup-footer">
+      <div class="wpm-preset">
+        <label for="startWpmSelect">Tốc độ khởi đầu</label>
+        <select id="startWpmSelect" class="mono">
+          <option value="200">200 WPM</option>
+          <option value="300" selected>300 WPM</option>
+          <option value="400">400 WPM</option>
+          <option value="500">500 WPM</option>
+          <option value="650">650 WPM</option>
+        </select>
+      </div>
+      <button class="btn-start" id="startBtn" disabled>Bắt đầu ▶</button>
+    </div>
+  </section>
+
+  <!-- ============ READER SCREEN ============ -->
+  <section id="readerSection">
+    <div class="reader-topbar">
+      <button class="link-back" id="backBtn">← Văn bản khác</button>
+      <div class="size-toggle" aria-label="Cỡ chữ">
+        <button class="size-btn" data-size="s">S</button>
+        <button class="size-btn active" data-size="m">M</button>
+        <button class="size-btn" data-size="l">L</button>
+      </div>
+    </div>
+
+    <div class="reticle">
+      <span class="corner tl"></span><span class="corner tr"></span>
+      <span class="corner bl"></span><span class="corner br"></span>
+      <div class="tick tick-top"></div>
+      <div class="word-row size-m" id="wordRow">
+        <span class="w-left" id="wordLeft"></span><span class="w-pivot" id="wordPivot"></span><span class="w-right" id="wordRight"></span>
+      </div>
+      <div class="tick tick-bottom"></div>
+    </div>
+
+    <div class="progress-wrap">
+      <input type="range" id="progressRange" min="0" max="0" value="0" step="1">
+      <div class="stat-row">
+        <span><span class="accent-num" id="wordCount">0 / 0</span> từ</span>
+        <span id="timeLeft">0:00 còn lại</span>
+      </div>
+    </div>
+
+    <div class="transport">
+      <button class="btn-ghost" id="restartBtn" title="Đọc lại từ đầu">⟲ Đầu</button>
+      <button class="btn-ghost" id="backWordBtn" title="Lùi 5 từ">« 5</button>
+      <button class="btn-play" id="playBtn" title="Phát / Tạm dừng">▶</button>
+      <button class="btn-ghost" id="fwdWordBtn" title="Tiến 5 từ">5 »</button>
+    </div>
+
+    <div class="speed-block">
+      <div class="speed-head">
+        <span class="speed-label">Tốc độ đọc</span>
+        <span class="speed-value"><span id="wpmValue">300</span> WPM</span>
+      </div>
+      <input type="range" id="speedRange" min="100" max="900" step="10" value="300">
+      <div class="speed-ticks"><span>100</span><span>300</span><span>500</span><span>700</span><span>900</span></div>
+    </div>
+
+    <div class="kbd-hint">
+      <kbd>Space</kbd> phát/dừng · <kbd>←</kbd> <kbd>→</kbd> lùi/tiến · <kbd>↑</kbd> <kbd>↓</kbd> tốc độ · <kbd>R</kbd> đọc lại
+    </div>
+  </section>
+
+</div>
+
+<script>
+(function(){
+  "use strict";
+
+  if (window.pdfjsLib) {
+    pdfjsLib.GlobalWorkerOptions.workerSrc = "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  }
+
+  // ---------- theme ----------
+  const themeToggle = document.getElementById('themeToggle');
+  themeToggle.addEventListener('click', () => {
+    const current = document.documentElement.getAttribute('data-theme');
+    document.documentElement.setAttribute('data-theme', current === 'light' ? 'dark' : 'light');
+  });
+
+  // ---------- elements ----------
+  const setupSection = document.getElementById('setupSection');
+  const readerSection = document.getElementById('readerSection');
+
+  const tabPasteBtn = document.getElementById('tabPasteBtn');
+  const tabFileBtn = document.getElementById('tabFileBtn');
+  const tabPastePanel = document.getElementById('tabPastePanel');
+  const tabFilePanel = document.getElementById('tabFilePanel');
+  const pasteInput = document.getElementById('pasteInput');
+
+  const dropzone = document.getElementById('dropzone');
+  const fileInput = document.getElementById('fileInput');
+  const filenameTag = document.getElementById('filenameTag');
+  const filenameText = document.getElementById('filenameText');
+
+  const statusLine = document.getElementById('statusLine');
+  const startWpmSelect = document.getElementById('startWpmSelect');
+  const startBtn = document.getElementById('startBtn');
+  const backBtn = document.getElementById('backBtn');
+
+  const wordRow = document.getElementById('wordRow');
+  const wordLeft = document.getElementById('wordLeft');
+  const wordPivot = document.getElementById('wordPivot');
+  const wordRight = document.getElementById('wordRight');
+
+  const progressRange = document.getElementById('progressRange');
+  const wordCountEl = document.getElementById('wordCount');
+  const timeLeftEl = document.getElementById('timeLeft');
+
+  const restartBtn = document.getElementById('restartBtn');
+  const backWordBtn = document.getElementById('backWordBtn');
+  const fwdWordBtn = document.getElementById('fwdWordBtn');
+  const playBtn = document.getElementById('playBtn');
+
+  const speedRange = document.getElementById('speedRange');
+  const wpmValueEl = document.getElementById('wpmValue');
+  const sizeButtons = document.querySelectorAll('.size-btn');
+
+  // ---------- state ----------
+  let activeTab = 'paste';
+  let selectedFile = null;
+  let fileText = '';
+
+  let words = [];
+  let currentIndex = 0;
+  let playing = false;
+  let timerId = null;
+  let wpm = 300;
+
+  // ---------- tab switching ----------
+  function setTab(tab){
+    activeTab = tab;
+    tabPasteBtn.classList.toggle('active', tab === 'paste');
+    tabFileBtn.classList.toggle('active', tab === 'file');
+    tabPastePanel.classList.toggle('active', tab === 'paste');
+    tabFilePanel.classList.toggle('active', tab === 'file');
+    statusLine.textContent = '';
+    statusLine.classList.remove('error');
+    refreshStartButton();
+  }
+  tabPasteBtn.addEventListener('click', () => setTab('paste'));
+  tabFileBtn.addEventListener('click', () => setTab('file'));
+
+  function refreshStartButton(){
+    if (activeTab === 'paste') {
+      startBtn.disabled = pasteInput.value.trim().length === 0;
+    } else {
+      startBtn.disabled = !fileText;
+    }
+  }
+  pasteInput.addEventListener('input', refreshStartButton);
+
+  // ---------- file handling ----------
+  dropzone.addEventListener('click', () => fileInput.click());
+  dropzone.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); fileInput.click(); }
+  });
+  dropzone.addEventListener('dragover', (e) => { e.preventDefault(); dropzone.classList.add('drag'); });
+  dropzone.addEventListener('dragleave', () => dropzone.classList.remove('drag'));
+  dropzone.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dropzone.classList.remove('drag');
+    if (e.dataTransfer.files && e.dataTransfer.files[0]) handleFile(e.dataTransfer.files[0]);
+  });
+  fileInput.addEventListener('change', () => {
+    if (fileInput.files && fileInput.files[0]) handleFile(fileInput.files[0]);
+  });
+
+  function setStatus(msg, isError){
+    statusLine.textContent = msg;
+    statusLine.classList.toggle('error', !!isError);
+  }
+
+  async function handleFile(file){
+    const name = file.name.toLowerCase();
+    selectedFile = file;
+    fileText = '';
+    filenameTag.classList.add('show');
+    filenameText.textContent = file.name;
+    refreshStartButton();
+
+    if (name.endsWith('.txt') || file.type === 'text/plain') {
+      setStatus('Đang đọc tệp văn bản...');
+      try {
+        fileText = await readFileAsText(file);
+        setStatus('Đã sẵn sàng: ' + countWords(fileText) + ' từ.');
+      } catch (err) {
+        setStatus('Không thể đọc tệp văn bản.', true);
+      }
+      refreshStartButton();
+      return;
+    }
+
+    if (name.endsWith('.pdf') || file.type === 'application/pdf') {
+      if (!window.pdfjsLib) {
+        setStatus('Không tải được thư viện đọc PDF. Kiểm tra kết nối mạng.', true);
+        return;
+      }
+      setStatus('Đang xử lý PDF...');
+      try {
+        fileText = await readPdfAsText(file, (p, total) => {
+          setStatus('Đang xử lý PDF... trang ' + p + '/' + total);
+        });
+        setStatus('Đã sẵn sàng: ' + countWords(fileText) + ' từ.');
+      } catch (err) {
+        setStatus('Không thể đọc tệp PDF này.', true);
+      }
+      refreshStartButton();
+      return;
+    }
+
+    setStatus('Định dạng không được hỗ trợ. Hãy dùng .txt hoặc .pdf.', true);
+    fileText = '';
+    refreshStartButton();
+  }
+
+  function countWords(text){
+    return tokenize(text).length;
+  }
+
+  function readFileAsText(file){
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file, 'utf-8');
+    });
+  }
+
+  async function readPdfAsText(file, onProgress){
+    const buf = await file.arrayBuffer();
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let full = '';
+    for (let p = 1; p <= pdf.numPages; p++) {
+      if (onProgress) onProgress(p, pdf.numPages);
+      const page = await pdf.getPage(p);
+      const content = await page.getTextContent();
+      const strings = content.items.map((it) => it.str);
+      full += strings.join(' ') + '\n\n';
+    }
+    return full;
+  }
+
+  // ---------- tokenizer ----------
+  function tokenize(text){
+    const normalized = text.replace(/\r\n/g, '\n').trim();
+    return normalized.split(/\s+/).filter(Boolean);
+  }
+
+  function orpIndex(word){
+    const len = word.length;
+    if (len <= 1) return 0;
+    if (len <= 5) return 1;
+    if (len <= 9) return 2;
+    if (len <= 13) return 3;
+    return Math.min(4, len - 1);
+  }
+
+  function computeDelay(word){
+    const base = 60000 / wpm;
+    let mult = 1;
+    if (/[.!?…]$/.test(word)) mult = 2.4;
+    else if (/[,;:]$/.test(word)) mult = 1.6;
+    if (word.length > 8) mult *= 1.15;
+    if (word.length > 12) mult *= 1.1;
+    return base * mult;
+  }
+
+  function formatTime(ms){
+    const s = Math.max(0, Math.round(ms / 1000));
+    const m = Math.floor(s / 60);
+    const sec = s % 60;
+    return m + ':' + String(sec).padStart(2, '0');
+  }
+
+  // ---------- rendering ----------
+  function renderWord(idx){
+    if (idx < 0 || idx >= words.length) return;
+    const w = words[idx];
+    const i = orpIndex(w);
+    wordLeft.textContent = w.slice(0, i);
+    wordPivot.textContent = w[i] || '';
+    wordRight.textContent = w.slice(i + 1);
+    progressRange.value = idx;
+    updateStats(idx);
+  }
+
+  function updateStats(idx){
+    wordCountEl.textContent = (idx + 1) + ' / ' + words.length;
+    let remaining = 0;
+    for (let k = idx; k < words.length; k++) remaining += computeDelay(words[k]);
+    timeLeftEl.textContent = formatTime(remaining) + ' còn lại';
+  }
+
+  // ---------- playback ----------
+  function step(){
+    if (!playing) return;
+    if (currentIndex >= words.length) { pause(); return; }
+    renderWord(currentIndex);
+    const delay = computeDelay(words[currentIndex]);
+    currentIndex++;
+    timerId = setTimeout(step, delay);
+  }
+
+  function play(){
+    if (words.length === 0) return;
+    if (currentIndex >= words.length) currentIndex = 0;
+    playing = true;
+    playBtn.textContent = '⏸';
+    readerSection.classList.add('is-playing');
+    step();
+  }
+
+  function pause(){
+    playing = false;
+    clearTimeout(timerId);
+    playBtn.textContent = '▶';
+    readerSection.classList.remove('is-playing');
+  }
+
+  function togglePlay(){
+    if (playing) pause(); else play();
+  }
+
+  function seekTo(idx){
+    pause();
+    currentIndex = Math.max(0, Math.min(words.length - 1, idx));
+    renderWord(currentIndex);
+  }
+
+  playBtn.addEventListener('click', togglePlay);
+  restartBtn.addEventListener('click', () => seekTo(0));
+  backWordBtn.addEventListener('click', () => seekTo(currentIndex - 5));
+  fwdWordBtn.addEventListener('click', () => seekTo(currentIndex + 5));
+  progressRange.addEventListener('input', () => seekTo(parseInt(progressRange.value, 10)));
+
+  speedRange.addEventListener('input', () => {
+    wpm = parseInt(speedRange.value, 10);
+    wpmValueEl.textContent = wpm;
+    updateStats(currentIndex);
+  });
+
+  sizeButtons.forEach((btn) => {
+    btn.addEventListener('click', () => {
+      sizeButtons.forEach((b) => b.classList.remove('active'));
+      btn.classList.add('active');
+      wordRow.className = 'word-row size-' + btn.dataset.size;
+    });
+  });
+
+  document.addEventListener('keydown', (e) => {
+    if (!readerSection.classList.contains('show')) return;
+    if (e.code === 'Space') { e.preventDefault(); togglePlay(); }
+    else if (e.code === 'ArrowRight') { e.preventDefault(); seekTo(currentIndex + 5); }
+    else if (e.code === 'ArrowLeft') { e.preventDefault(); seekTo(currentIndex - 5); }
+    else if (e.code === 'ArrowUp') { e.preventDefault(); speedRange.value = Math.min(900, wpm + 25); speedRange.dispatchEvent(new Event('input')); }
+    else if (e.code === 'ArrowDown') { e.preventDefault(); speedRange.value = Math.max(100, wpm - 25); speedRange.dispatchEvent(new Event('input')); }
+    else if (e.key === 'r' || e.key === 'R') { seekTo(0); }
+  });
+
+  // ---------- start / back ----------
+  startBtn.addEventListener('click', () => {
+    const text = activeTab === 'paste' ? pasteInput.value : fileText;
+    words = tokenize(text);
+    if (words.length === 0) {
+      setStatus('Không tìm thấy văn bản để đọc.', true);
+      return;
+    }
+    currentIndex = 0;
+    wpm = parseInt(startWpmSelect.value, 10);
+    speedRange.value = wpm;
+    wpmValueEl.textContent = wpm;
+    progressRange.max = words.length - 1;
+    progressRange.value = 0;
+
+    setupSection.style.display = 'none';
+    readerSection.classList.add('show');
+
+    renderWord(0);
+    pause();
+  });
+
+  backBtn.addEventListener('click', () => {
+    pause();
+    readerSection.classList.remove('show');
+    setupSection.style.display = 'block';
+  });
+
+  // ---------- init ----------
+  setTab('paste');
+  refreshStartButton();
+})();
+</script>
+</body>
+</html>
